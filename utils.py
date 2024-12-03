@@ -103,22 +103,6 @@ def generate_pseudo_negative_cache(cfg, cache_keys):
     negative_cache_keys = F.normalize(negative_cache_keys, dim=1)
     
     return negative_cache_keys
-
-    
-def generate_soft_label(cfg, cache_keys, cache_values, temperature=1):
-    num_shot = cfg['shots']
-    num_class = cache_keys.shape[0] // cfg['shots']
-    labels = cache_values.topk(1, 1, True, True)[1].squeeze()
-    for i in range(num_class):
-        indices = (labels == i)
-        keys = cache_keys[indices, :]
-        cos_sim = keys @ keys.t()
-        sum_sim = cos_sim.sum(dim=1) - 1
-        avg_sim = sum_sim / (num_shot - 1)
-        confidence = F.softmax(avg_sim / temperature, dim=0)
-        cache_values[indices, :] = cache_values[indices, :] * confidence.unsqueeze(1) * num_shot
-        
-    return cache_values.half()
     
 class SmoothCrossEntropy(nn.Module):
     def __init__(self, alpha=0.0):
