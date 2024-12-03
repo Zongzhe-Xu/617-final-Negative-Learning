@@ -40,8 +40,7 @@ def SimNL(cfg, cache_keys, cache_values, val_features, val_labels, test_features
     print("**** cache_keys shape: {:}. ****\n".format(cache_keys.shape))
     print("**** cache_values shape: {:}. ****\n".format(cache_values.shape))
     negative_cache_keys = generate_pseudo_negative_cache(cfg, cache_keys)
-    soft_cache_values = generate_soft_label(cfg, cache_keys, cache_values)
-    # soft_cache_values = cache_values
+    soft_cache_values = cache_values
     positive_adapter = PositiveAdapter(cfg, clip_weights_template, clip_weights_cupl, clip_weights_negative, clip_model, cache_keys, negative_cache_keys, cache_values).cuda()
     negative_adapter = NegativeAdapter(cfg, clip_weights_template, clip_weights_cupl, clip_weights_negative, clip_model, cache_keys, negative_cache_keys, cache_values).cuda()
     
