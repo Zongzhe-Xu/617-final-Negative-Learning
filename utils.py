@@ -104,31 +104,6 @@ def generate_pseudo_negative_cache(cfg, cache_keys):
     
     return negative_cache_keys
 
-# def generate_soft_label(cfg, cache_keys, cache_values, temperature=0.1):
-#     num_shot = cfg['shots']
-#     num_class = cache_keys.shape[0] // cfg['shots']
-#     feat_dim = cache_keys.shape[-1]
-    
-#     if num_shot == 1:
-#         return cache_values.half()
-#     else:
-#         # Reshaping the cache keys and values
-#         cache_keys = cache_keys.reshape(num_class, num_shot, feat_dim)
-#         cache_values = cache_values.reshape(num_class, num_shot, num_class)
-        
-#         soft_cache_values = torch.zeros((num_class, num_shot, num_class), device='cuda')
-#         for i in range(num_class):
-#             keys = cache_keys[i, :, :]
-#             values = cache_values[i, :, :]
-#             cos_sim = keys @ keys.t()
-#             sum_sim = cos_sim.sum(dim=1) - 1
-#             avg_sim = sum_sim / (num_shot - 1)
-#             confidence = F.softmax(avg_sim / temperature, dim=0)
-#             soft_cache_values[i, :, :] = values * confidence.unsqueeze(1) * num_shot
-        
-#         soft_cache_values = soft_cache_values.reshape(-1, num_class)
-
-#         return soft_cache_values.half()
     
 def generate_soft_label(cfg, cache_keys, cache_values, temperature=1):
     num_shot = cfg['shots']
