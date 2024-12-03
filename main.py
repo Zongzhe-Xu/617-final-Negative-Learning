@@ -40,8 +40,7 @@ def SimNL(cfg, cache_keys, cache_values, val_features, val_labels, test_features
     print("**** cache_keys shape: {:}. ****\n".format(cache_keys.shape))
     print("**** cache_values shape: {:}. ****\n".format(cache_values.shape))
     negative_cache_keys = generate_pseudo_negative_cache(cfg, cache_keys)
-    soft_cache_values = generate_soft_label(cfg, cache_keys, cache_values)
-    # soft_cache_values = cache_values
+    soft_cache_values = cache_values
     positive_adapter = PositiveAdapter(cfg, clip_weights_template, clip_weights_cupl, clip_weights_negative, clip_model, cache_keys, negative_cache_keys, cache_values).cuda()
     negative_adapter = NegativeAdapter(cfg, clip_weights_template, clip_weights_cupl, clip_weights_negative, clip_model, cache_keys, negative_cache_keys, cache_values).cuda()
     
@@ -80,7 +79,7 @@ def SimNL(cfg, cache_keys, cache_values, val_features, val_labels, test_features
             
             Aff = ((-1) * (beta - beta * (R_fF))).exp()
             cache_logits = Aff @ soft_cache_values
-            new_clip_weights = 0.45 * new_clip_weights_template + 0.55 * new_clip_weights_cupl
+            new_clip_weights = new_clip_weights_template
             R_fW = 100. * (image_features @ new_clip_weights) 
             
             # Negative
@@ -88,21 +87,12 @@ def SimNL(cfg, cache_keys, cache_values, val_features, val_labels, test_features
             Aff2 = ((-1) * (beta - beta * (R_fF2))).exp()
             cache_logits2 = Aff2 @ cache_values
             R_fW2 = 100. * (1 - image_features @ new_clip_weights_negative) * 0.15 # to scale
-            
-            cos = nn.CosineSimilarity(dim=1, eps=1e-7)
-            text_distance_template = 1 - cos(new_clip_weights, clip_weights_template)
-            text_distance_cupl = 1 - cos(new_clip_weights, clip_weights_cupl)
-            consistency_loss = (0.45 * text_distance_template + (1 - 0.45) * text_distance_cupl).mean()
 
             ape_logits = R_fW + cache_logits * alpha
             ape_logits2 = R_fW2 + cache_logits2 * alpha
             final_logits = lam * ape_logits + (1 - lam) * ape_logits2
             
-            loss1 = Loss(final_logits, target)
-            loss2 = adaptive_reranking_loss(image_features, new_clip_weights.t(), target)
-            
-            loss = loss1 + loss2 + 8 * consistency_loss
-
+            loss = Loss(final_logits, target)
             acc = cls_acc(final_logits, target)
             correct_samples += acc / 100 * len(final_logits)
             all_samples += len(final_logits)
@@ -214,7 +204,7 @@ def SimNL(cfg, cache_keys, cache_values, val_features, val_labels, test_features
         R_fF = test_features @ new_cache_keys.half().t()
         Aff = ((-1) * (best_beta - best_beta * (R_fF))).exp()
         cache_logits = Aff @ soft_cache_values
-        new_clip_weights = 0.45 * new_clip_weights_template + 0.55 * new_clip_weights_cupl
+        new_clip_weights = new_clip_weights_template
         R_fW = 100. * (test_features @ new_clip_weights) 
         
         # Negative
@@ -229,40 +219,6 @@ def SimNL(cfg, cache_keys, cache_values, val_features, val_labels, test_features
         acc = cls_acc(final_logits, test_labels)
     print("**** SimNL's final test accuracy: {:.2f}. ****\n".format(acc)) 
 
-
-def adaptive_reranking_loss(
-    visual_features: torch.Tensor,
-    class_prototypes: torch.Tensor,
-    labels: torch.Tensor,
-    scale: float = 4.0,
-    knn: int = 3,
-    **_: torch.Tensor,
-) -> torch.Tensor:
-
-    N = visual_features.shape[0]
-    C = class_prototypes.shape[0]
-    knn = min(knn, C)
-    
-    
-    distances = torch.cdist(visual_features.float(), class_prototypes.float(), p=2)
-
-    sorted_distances, sorted_indices = torch.sort(
-        distances, dim=1, descending=False)
-    anchor = (
-        ((visual_features - class_prototypes[labels]) ** 2).sum(-1).sqrt().unsqueeze(1)
-    )
-    sorted_distances = sorted_distances[:, :knn]
-
-    pos_cla_proto = class_prototypes[labels].unsqueeze(1)
-    all_cls = class_prototypes[sorted_indices[:, :knn]]
-    margins = (1.0 - (all_cls * pos_cla_proto).sum(-1)) / scale
-
-    loss = torch.max(
-        anchor + margins - sorted_distances,
-        torch.zeros(N, knn).to(visual_features.device),
-    )
-
-    return loss.mean()
 
 def main():
 
